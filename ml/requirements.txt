@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+scikit-learn
+pandas
+numpy
+shap==0.54.1
+dice-ml==0.12
