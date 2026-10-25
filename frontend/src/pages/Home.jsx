@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
+import useAuth from '../context/useAuth'
 
 function Home() {
+  const { isAuthenticated } = useAuth()
+
   return (
     <section className="grid items-center gap-12 py-10 md:grid-cols-[1.1fr_.9fr] md:py-20">
       <div>
@@ -9,7 +12,9 @@ function Home() {
         <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">Turn your soil data into practical crop recommendations, soil guidance, and per-hectare economics.</p>
         <div className="mt-8 flex flex-wrap gap-4">
           <Link to="/recommend" className="rounded-full bg-emerald-700 px-6 py-3 font-bold text-white shadow-lg shadow-emerald-700/20 transition hover:bg-emerald-800">Get a recommendation</Link>
-          <Link to="/register" className="rounded-full border border-emerald-700 px-6 py-3 font-bold text-emerald-700 transition hover:bg-emerald-50">Create account</Link>
+          {!isAuthenticated && (
+            <Link to="/register" className="rounded-full border border-emerald-700 px-6 py-3 font-bold text-emerald-700 transition hover:bg-emerald-50">Create account</Link>
+          )}
         </div>
       </div>
       <div className="relative overflow-hidden rounded-[2rem] bg-emerald-900 p-8 text-white shadow-2xl shadow-emerald-950/15">

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bar,
@@ -8,7 +9,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import CounterfactualSection from '../components/CounterfactualSection'
+import EconomicsSection from '../components/EconomicsSection'
 import ExplanationSection from '../components/ExplanationSection'
+import SoilAnalysisSection, { soilStatusClasses } from '../components/SoilAnalysisSection'
+import { formatPercent, formatProbability } from '../lib/format'
+import { loadResult } from '../lib/resultStorage'
 
 function ProbabilityTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -16,26 +22,17 @@ function ProbabilityTooltip({ active, payload }) {
   return (
     <div className="rounded-xl border border-emerald-100 bg-white px-4 py-3 shadow-lg">
       <p className="font-semibold capitalize text-emerald-950">{payload[0].payload.crop}</p>
-      <p className="text-sm text-emerald-700">{(payload[0].value * 100).toFixed(1)}% probability</p>
+      <p className="text-sm text-emerald-700">{formatProbability(payload[0].value)} probability</p>
     </div>
   )
 }
 
-function soilStatusClasses(status) {
-  if (status === 'Optimal') return 'bg-emerald-100 text-emerald-800'
-  if (status === 'Low') return 'bg-amber-100 text-amber-800'
-  return 'bg-red-100 text-red-800'
-}
-
 function Result() {
-  const result = JSON.parse(sessionStorage.getItem('soilwise_result') || 'null')
-  const recommendations = result?.recommendations || []
-  const chartData = recommendations.map(({ crop, probability }) => ({ crop, probability }))
-  const profitRanks = [...recommendations]
-    .sort((a, b) => (b.economics?.profit_rs_per_ha || 0) - (a.economics?.profit_rs_per_ha || 0))
-    .reduce((ranks, item, index) => ({ ...ranks, [item.crop]: index + 1 }), {})
+  // Read once; corrupt or missing data is treated as "no result" instead of crashing.
+  const result = useMemo(() => loadResult(), [])
+  const recommendations = Array.isArray(result?.recommendations) ? result.recommendations : []
 
-  if (!result) {
+  if (!recommendations.length) {
     return (
       <div className="py-20 text-center">
         <h1 className="text-3xl font-bold text-emerald-950">No result yet</h1>
@@ -45,6 +42,10 @@ function Result() {
       </div>
     )
   }
+
+  const chartData = recommendations.map(({ crop, probability }) => ({ crop, probability }))
+  const topCrop = recommendations[0].crop
+  const othersAreNegligible = recommendations.slice(1).every((item) => Number(item.probability) < 0.01)
 
   return (
     <div>
@@ -58,10 +59,21 @@ function Result() {
         </Link>
       </div>
 
+      {result.saved === false && (
+        <p role="alert" className="mb-6 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
+          This recommendation could not be saved to your history. You can still use it here, but it will be gone once you leave this page.
+        </p>
+      )}
+
       <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm md:p-8">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-emerald-950">Recommendation probability</h2>
           <p className="mt-1 text-sm text-slate-500">How strongly the model recommends each of the top five crops.</p>
+          {othersAreNegligible && (
+            <p className="mt-2 text-xs text-slate-400">
+              The model is very confident in {topCrop}; the other crops shown are far less likely to suit these conditions.
+            </p>
+          )}
         </div>
         <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -70,7 +82,7 @@ function Result() {
               <XAxis dataKey="crop" tick={{ fill: '#475569', fontSize: 12 }} tickLine={false} axisLine={false} />
               <YAxis
                 domain={[0, 1]}
-                tickFormatter={(value) => `${value * 100}%`}
+                tickFormatter={(value) => `${Math.round(value * 100)}%`}
                 tick={{ fill: '#64748b', fontSize: 12 }}
                 tickLine={false}
                 axisLine={false}
@@ -85,87 +97,15 @@ function Result() {
 
       <ExplanationSection
         explanation={result.explanation}
-        crop={result.explanation?.crop || recommendations[0]?.crop}
+        crop={result.explanation?.crop || topCrop}
       />
 
-      <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm md:p-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-emerald-950">Soil analysis</h2>
-          <p className="mt-1 text-sm text-slate-500">See how your current soil readings compare with each recommended crop.</p>
-          <p className="mt-3 text-xs text-slate-500">Soil analysis is rule-based from typical crop ranges. “Why this crop?” comes from the model.</p>
-        </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          {recommendations.map((item) => (
-            <div key={item.crop} className="overflow-hidden rounded-2xl border border-slate-100">
-              <div className="flex items-center justify-between bg-emerald-50 px-5 py-4">
-                <h3 className="text-lg font-bold capitalize text-emerald-950">{item.crop}</h3>
-                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Soil fit</span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[480px] text-left text-sm">
-                  <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-5 py-3 font-semibold">Parameter</th>
-                      <th className="px-5 py-3 font-semibold">Status</th>
-                      <th className="px-5 py-3 font-semibold">Suggested fix</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {Object.entries(item.soil_analysis || {}).map(([parameter, analysis]) => (
-                      <tr key={parameter}>
-                        <td className="px-5 py-4 font-semibold text-slate-700">{parameter}</td>
-                        <td className="px-5 py-4">
-                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${soilStatusClasses(analysis.status)}`}>
-                            {analysis.status}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-slate-600">{analysis.suggestion}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <SoilAnalysisSection recommendations={recommendations} />
+      <EconomicsSection recommendations={recommendations} />
 
-      <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm md:p-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-emerald-950">Economics by crop</h2>
-          <p className="mt-1 text-sm text-slate-500">Compare expected returns with the model ranking. All values are per hectare.</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3 font-semibold">Crop</th>
-                <th className="px-4 py-3 text-center font-semibold">ML rank</th>
-                <th className="px-4 py-3 text-right font-semibold">Revenue</th>
-                <th className="px-4 py-3 text-right font-semibold">Cost</th>
-                <th className="px-4 py-3 text-right font-semibold">Profit</th>
-                <th className="px-4 py-3 text-center font-semibold">Profit rank</th>
-                <th className="px-4 py-3 text-right font-semibold">ROI</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {recommendations.map((item, index) => (
-                <tr key={item.crop} className="text-slate-700">
-                  <td className="px-4 py-4 font-bold capitalize text-emerald-950">{item.crop}</td>
-                  <td className="px-4 py-4 text-center">
-                    <span className="inline-grid size-7 place-items-center rounded-full bg-emerald-100 font-bold text-emerald-700">{index + 1}</span>
-                  </td>
-                  <td className="px-4 py-4 text-right">₹{(item.economics?.revenue_rs_per_ha || 0).toLocaleString()}</td>
-                  <td className="px-4 py-4 text-right">₹{(item.economics?.cost_rs_per_ha || 0).toLocaleString()}</td>
-                  <td className="px-4 py-4 text-right font-bold text-emerald-700">₹{(item.economics?.profit_rs_per_ha || 0).toLocaleString()}</td>
-                  <td className="px-4 py-4 text-center font-semibold">{profitRanks[item.crop]}</td>
-                  <td className="px-4 py-4 text-right font-semibold">{item.economics?.roi_percent ?? 0}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {result.inputs && (
+        <CounterfactualSection key={topCrop} inputs={result.inputs} currentCrop={topCrop} />
+      )}
 
       <div className="grid gap-5">
         {recommendations.map((item, index) => (
@@ -177,7 +117,7 @@ function Result() {
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 {Object.entries(item.soil_analysis || {}).map(([key, value]) => (
-                  <span key={key} className={`rounded-full px-3 py-1 text-xs font-bold ${value.status === 'Optimal' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                  <span key={key} className={`rounded-full px-3 py-1 text-xs font-bold ${soilStatusClasses(value.status)}`}>
                     {key}: {value.status}
                   </span>
                 ))}
@@ -185,8 +125,8 @@ function Result() {
             </div>
             <div className="mt-5 text-left md:mt-0 md:text-right">
               <p className="text-sm text-slate-500">Model probability</p>
-              <p className="text-3xl font-bold text-emerald-700">{(item.probability * 100).toFixed(1)}%</p>
-              <p className="mt-2 text-sm text-slate-600">ROI: {item.economics?.roi_percent}%</p>
+              <p className="text-3xl font-bold text-emerald-700">{formatProbability(item.probability)}</p>
+              <p className="mt-2 text-sm text-slate-600">ROI: {formatPercent(item.economics?.roi_percent)}</p>
             </div>
           </article>
         ))}

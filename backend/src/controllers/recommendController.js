@@ -1,109 +1,95 @@
-const axios = require("axios");
-
 const Prediction = require("../models/Prediction");
-const { mlApiUrl } = require("../config/env");
+const { FEATURE_NAMES, pickFeatures } = require("../config/features");
+const { mlClient, mlErrorResponse } = require("../lib/mlClient");
 
-const FEATURE_RULES = {
-  N: [0, 140],
-  P: [5, 145],
-  K: [5, 205],
-  temperature: [8.8, 43.7],
-  humidity: [14.2, 100],
-  ph: [3.5, 9.94],
-  rainfall: [20.2, 298.6],
-};
-const EXPLANATION_FEATURES = Object.keys(FEATURE_RULES);
-
-function validateInput(body) {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return "Request body must be a JSON object";
-  }
-
-  for (const [field, [minimum, maximum]] of Object.entries(FEATURE_RULES)) {
-    const value = body[field];
-    if (
-      typeof value !== "number"
-      || !Number.isFinite(value)
-      || value < minimum
-      || value > maximum
-    ) {
-      return `${field} must be a number between ${minimum} and ${maximum}`;
-    }
-  }
-  return null;
+function invalidExplanation(res) {
+  return res.status(502).json({ error: "ML service returned an invalid explanation" });
 }
 
 async function recommend(req, res, next) {
-  const validationError = validateInput(req.body);
-  if (validationError) {
-    return res.status(400).json({ error: validationError });
-  }
+  // Input was validated and converted to numbers by recommendationValidation.
+  // Forward ONLY the model's features, never the raw request body.
+  const input = pickFeatures(req.body);
 
   try {
-    const { data } = await axios.post(`${mlApiUrl}/recommend`, req.body, {
-      timeout: 15000,
-    });
-    if (!data || !Array.isArray(data.recommendations) || data.recommendations.length !== 5) {
+    const { data } = await mlClient.post("/recommend", input);
+
+    if (!data || !Array.isArray(data.recommendations) || data.recommendations.length === 0) {
       return res.status(502).json({ error: "ML service returned an invalid recommendation" });
     }
     if (
       !data.explanation
       || !Array.isArray(data.explanation.features)
-      || data.explanation.features.length !== EXPLANATION_FEATURES.length
+      || data.explanation.features.length === 0
     ) {
-      return res.status(502).json({ error: "ML service returned an invalid explanation" });
+      return invalidExplanation(res);
+    }
+
+    // Validate feature names BEFORE using them to read the input values.
+    const receivedFeatureNames = data.explanation.features.map((item) => item.feature);
+    if (
+      !receivedFeatureNames.every((name) => FEATURE_NAMES.includes(name))
+      || new Set(receivedFeatureNames).size !== receivedFeatureNames.length
+    ) {
+      return invalidExplanation(res);
     }
 
     const explanation = data.explanation.features.map((item) => ({
       feature: item.feature,
-      value: req.body[item.feature],
+      value: input[item.feature],
       shap: item.contribution,
       direction: item.direction,
       sentence: item.sentence,
     }));
     if (
       explanation.some((item) => (
-        !EXPLANATION_FEATURES.includes(item.feature)
-        || typeof item.value !== "number"
+        typeof item.value !== "number"
         || typeof item.shap !== "number"
         || !["supports", "opposes"].includes(item.direction)
         || typeof item.sentence !== "string"
       ))
-      || new Set(explanation.map((item) => item.feature)).size !== EXPLANATION_FEATURES.length
     ) {
-      return res.status(502).json({ error: "ML service returned an invalid explanation" });
+      return invalidExplanation(res);
     }
 
-    const prediction = await Prediction.create({
-      user: req.user.sub,
-      N: req.body.N,
-      P: req.body.P,
-      K: req.body.K,
-      temperature: req.body.temperature,
-      humidity: req.body.humidity,
-      ph: req.body.ph,
-      rainfall: req.body.rainfall,
-      top5Results: data.recommendations.map(({ crop, probability }) => ({
-        crop,
-        probability,
-      })),
-      soilAnalysis: data.recommendations.map(({ crop, soil_analysis }) => ({
-        crop,
-        analysis: soil_analysis,
-      })),
-      economics: data.recommendations.map(({ economics }) => economics),
-      explanation,
-    });
-
-    return res.status(200).json(data);
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const status = error.response ? 502 : 503;
-      return res.status(status).json({
-        error: error.response
-          ? "ML service returned an error"
-          : "ML service is unavailable",
+    // The recommendation is still useful if saving fails, so do not throw it away:
+    // return it with saved:false and let the client show a warning.
+    let savedId = null;
+    try {
+      const prediction = await Prediction.create({
+        user: req.user.sub,
+        ...input,
+        top5Results: data.recommendations.map(({ crop, probability }) => ({
+          crop,
+          probability,
+        })),
+        soilAnalysis: data.recommendations.map(({ crop, soil_analysis: analysis }) => ({
+          crop,
+          analysis,
+        })),
+        economics: data.recommendations.map(({ economics }) => economics),
+        explanation,
+        explanationMeta: {
+          crop: data.explanation.crop,
+          probability: data.explanation.probability,
+          base_value: data.explanation.base_value,
+        },
       });
+      savedId = prediction._id.toString();
+    } catch (saveError) {
+      console.error("Unable to save prediction history:", saveError);
+    }
+
+    return res.status(200).json({
+      ...data,
+      inputs: input,
+      id: savedId,
+      saved: savedId !== null,
+    });
+  } catch (error) {
+    const mapped = mlErrorResponse(error);
+    if (mapped) {
+      return res.status(mapped.status).json({ error: mapped.message });
     }
     return next(error);
   }

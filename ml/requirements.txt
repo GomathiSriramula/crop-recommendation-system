@@ -1,7 +1,13 @@
-fastapi
-uvicorn
-scikit-learn
-pandas
-numpy
+# The pickled model was saved with scikit-learn 1.8.0 - keep this EXACT version.
+scikit-learn==1.8.0
 shap==0.54.1
 dice-ml==0.12
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pydantic>=2.7,<3
+numpy>=1.26,<3
+pandas>=2.2,<4
+
+# Tip: in the environment where everything already works, run
+#   pip freeze > requirements.lock.txt
+# and deploy with those exact versions (pickles are sensitive to numpy/pandas versions).

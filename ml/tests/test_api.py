@@ -50,11 +50,11 @@ def test_shap_background_is_stratified_sample() -> None:
 def test_cors_allows_local_frontend() -> None:
     response = client.get(
         "/health",
-        headers={"Origin": "http://localhost:3000"},
+        headers={"Origin": "http://localhost:5173"},
     )
 
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
 def test_predict_returns_top_five() -> None:
@@ -168,7 +168,7 @@ def test_explain_returns_ranked_feature_contributions(monkeypatch) -> None:
         "contribution": 0.8,
         "direction": "supports",
         "rank": 1,
-        "sentence": "Low phosphorus (42 mg/kg) strongly supports rice.",
+        "sentence": "Low phosphorus index (42) strongly supports rice.",
     }
     assert body["features"][4]["direction"] == "opposes"
 

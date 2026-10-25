@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 
+const { FEATURE_RULES } = require("../config/features");
+
 const topResultSchema = new mongoose.Schema(
   {
     crop: {
@@ -23,6 +25,15 @@ const soilAnalysisItemSchema = new mongoose.Schema(
       type: String,
       enum: ["Low", "Optimal", "High"],
       required: true,
+    },
+    value: {
+      type: Number,
+    },
+    range_low: {
+      type: Number,
+    },
+    range_high: {
+      type: Number,
     },
     change_needed: {
       type: Number,
@@ -110,54 +121,63 @@ const explanationSchema = new mongoose.Schema(
   { _id: false },
 );
 
+// Top-level explanation metadata stored alongside the per-feature array
+const explanationMetaSchema = new mongoose.Schema(
+  {
+    crop: { type: String, required: true, trim: true },
+    probability: { type: Number, required: true, min: 0, max: 1 },
+    base_value: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
 const predictionSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
-    index: true,
   },
   N: {
     type: Number,
     required: true,
-    min: 0,
-    max: 140,
+    min: FEATURE_RULES.N.min,
+    max: FEATURE_RULES.N.max,
   },
   P: {
     type: Number,
     required: true,
-    min: 5,
-    max: 145,
+    min: FEATURE_RULES.P.min,
+    max: FEATURE_RULES.P.max,
   },
   K: {
     type: Number,
     required: true,
-    min: 5,
-    max: 205,
+    min: FEATURE_RULES.K.min,
+    max: FEATURE_RULES.K.max,
   },
   temperature: {
     type: Number,
     required: true,
-    min: 8.8,
-    max: 43.7,
+    min: FEATURE_RULES.temperature.min,
+    max: FEATURE_RULES.temperature.max,
   },
   humidity: {
     type: Number,
     required: true,
-    min: 14.2,
-    max: 100,
+    min: FEATURE_RULES.humidity.min,
+    max: FEATURE_RULES.humidity.max,
   },
   ph: {
     type: Number,
     required: true,
-    min: 3.5,
-    max: 9.94,
+    min: FEATURE_RULES.ph.min,
+    max: FEATURE_RULES.ph.max,
   },
   rainfall: {
     type: Number,
     required: true,
-    min: 20.2,
-    max: 298.6,
+    min: FEATURE_RULES.rainfall.min,
+    max: FEATURE_RULES.rainfall.max,
   },
   top5Results: {
     type: [topResultSchema],
@@ -190,6 +210,10 @@ const predictionSchema = new mongoose.Schema({
       validator: (explanation) => explanation.length === 7,
       message: "Exactly seven explanation features are required",
     },
+  },
+  explanationMeta: {
+    type: explanationMetaSchema,
+    required: false,
   },
   createdAt: {
     type: Date,

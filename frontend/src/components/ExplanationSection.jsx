@@ -8,16 +8,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { FEATURE_LABELS } from '../lib/featureRules'
 
-const featureLabels = {
-  N: 'Nitrogen',
-  P: 'Phosphorus',
-  K: 'Potassium',
-  temperature: 'Temperature',
-  humidity: 'Humidity',
-  ph: 'Soil pH',
-  rainfall: 'Rainfall',
-}
+const signed = (value) => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(4)}`
 
 function ExplanationTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -26,8 +19,8 @@ function ExplanationTooltip({ active, payload }) {
   return (
     <div className="max-w-xs rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm shadow-lg">
       <p className="font-semibold text-emerald-950">{item.label}</p>
-      <p className={item.direction === 'supports' ? 'text-emerald-700' : 'text-red-600'}>
-        {item.direction === 'supports' ? 'Supports' : 'Opposes'} · SHAP {item.shap.toFixed(4)}
+      <p className={item.shap >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+        {item.shap >= 0 ? 'Supports' : 'Opposes'} · SHAP {signed(item.shap)}
       </p>
       <p className="mt-2 text-xs leading-5 text-slate-500">
         This shows how much this input pushed the model towards or away from the recommended crop.
@@ -38,11 +31,16 @@ function ExplanationTooltip({ active, payload }) {
 
 function ExplanationSection({ explanation, crop }) {
   const features = (explanation?.features || [])
-    .map((item) => ({
-      ...item,
-      shap: Number(item.contribution ?? item.shap ?? 0),
-      label: featureLabels[item.feature] || item.feature,
-    }))
+    .map((item) => {
+      const shap = Number(item.contribution ?? item.shap ?? 0)
+      return {
+        ...item,
+        shap,
+        // Direction is derived from the sign so the colour, tooltip and legend always agree.
+        direction: shap >= 0 ? 'supports' : 'opposes',
+        label: FEATURE_LABELS[item.feature] || item.feature,
+      }
+    })
     .sort((a, b) => Math.abs(b.shap) - Math.abs(a.shap))
 
   if (!features.length) return null
@@ -55,12 +53,12 @@ function ExplanationSection({ explanation, crop }) {
           How each input pushed the model towards {crop || explanation.crop || 'this crop'}.
         </p>
         <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold text-slate-600">
-          <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full bg-emerald-600" /> Supports</span>
-          <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full bg-red-500" /> Opposes</span>
-          <span className="text-slate-400">Hover a bar for details.</span>
+          <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full bg-emerald-600" /> Supports (+, bar to the right)</span>
+          <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full bg-red-500" /> Opposes (−, bar to the left)</span>
+          <span className="text-slate-400">Hover or tap a bar for details.</span>
         </div>
       </div>
-      <div className="h-[24rem] w-full">
+      <div className="h-[24rem] w-full" role="img" aria-label={`Bar chart of how each input supports or opposes ${crop || 'the recommended crop'}`}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={features}
@@ -70,6 +68,7 @@ function ExplanationSection({ explanation, crop }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#dce8df" horizontal={false} />
             <XAxis
               type="number"
+              tickFormatter={(value) => Number(value.toFixed(2))}
               tick={{ fill: '#64748b', fontSize: 12 }}
               tickLine={false}
               axisLine={false}
@@ -85,7 +84,7 @@ function ExplanationSection({ explanation, crop }) {
             <Tooltip content={<ExplanationTooltip />} cursor={{ fill: '#f0fdf4' }} />
             <Bar dataKey="shap" radius={[0, 6, 6, 0]} maxBarSize={28}>
               {features.map((item) => (
-                <Cell key={item.feature} fill={item.direction === 'opposes' || item.shap < 0 ? '#ef4444' : '#059669'} />
+                <Cell key={item.feature} fill={item.shap < 0 ? '#ef4444' : '#059669'} />
               ))}
             </Bar>
           </BarChart>
@@ -94,6 +93,7 @@ function ExplanationSection({ explanation, crop }) {
       <div className="mt-6 grid gap-3">
         {features.map((item) => (
           <p key={item.feature} className="rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+            <span className={`mr-2 font-bold ${item.shap >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{signed(item.shap)}</span>
             {item.sentence}
           </p>
         ))}

@@ -1,14 +1,14 @@
 const app = require("./app");
-const { jwtSecret, nodeEnv, port } = require("./config/env");
-const { connectDatabase } = require("./config/database");
+const { nodeEnv, port, validateConfig } = require("./config/env");
+const { connectDatabase, disconnectDatabase } = require("./config/database");
+
+let server;
 
 async function startServer() {
   try {
-    if (!jwtSecret) {
-      throw new Error("JWT_SECRET is not configured");
-    }
+    validateConfig();
     await connectDatabase();
-    app.listen(port, () => {
+    server = app.listen(port, () => {
       console.log(`Backend listening on port ${port} (${nodeEnv})`);
     });
   } catch (error) {
@@ -16,5 +16,29 @@ async function startServer() {
     process.exitCode = 1;
   }
 }
+
+// Stop accepting new requests, finish in-flight ones, then close MongoDB.
+async function shutdown(signal) {
+  console.log(`${signal} received, shutting down...`);
+  const forceExit = setTimeout(() => process.exit(1), 10000);
+  forceExit.unref();
+
+  try {
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
+    await disconnectDatabase();
+    process.exit(0);
+  } catch (error) {
+    console.error("Error during shutdown:", error);
+    process.exit(1);
+  }
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
 
 startServer();

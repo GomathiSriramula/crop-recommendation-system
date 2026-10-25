@@ -9,19 +9,11 @@ import {
   YAxis,
 } from 'recharts'
 import api from '../lib/api'
+import { getErrorMessage } from '../lib/errors'
+import { FEATURE_LABELS } from '../lib/featureRules'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import useToast from '../context/useToast'
-
-const labels = {
-  N: 'Nitrogen',
-  P: 'Phosphorus',
-  K: 'Potassium',
-  temperature: 'Temperature',
-  humidity: 'Humidity',
-  ph: 'Soil pH',
-  rainfall: 'Rainfall',
-}
 
 function Insights() {
   const [features, setFeatures] = useState([])
@@ -30,20 +22,26 @@ function Insights() {
   const { showToast } = useToast()
 
   useEffect(() => {
-    api.get('/feature-importance')
+    const controller = new AbortController()
+
+    api.get('/feature-importance', { signal: controller.signal })
       .then(({ data }) => {
         setFeatures((data.features || []).map((item) => ({
           ...item,
-          label: labels[item.feature] || item.feature,
+          label: FEATURE_LABELS[item.feature] || item.feature,
           importance: Number(item.mean_absolute_shap || 0),
         })))
+        setLoading(false)
       })
       .catch((err) => {
-        const message = err.response?.data?.error || 'Unable to load model insights.'
+        if (controller.signal.aborted) return
+        const message = getErrorMessage(err, 'Unable to load model insights.')
         setError(message)
         showToast(message)
+        setLoading(false)
       })
-      .finally(() => setLoading(false))
+
+    return () => controller.abort()
   }, [showToast])
 
   return (
@@ -51,7 +49,7 @@ function Insights() {
       <PageHeader
         eyebrow="Model insights"
         title="What matters across the model"
-        description="Mean absolute SHAP impact across the model’s background data. Larger values mean a feature generally influences predictions more."
+        description="Mean absolute SHAP impact across a sample of the model’s training data. Larger values mean a feature generally influences predictions more."
       />
       {loading && <div className="flex justify-center rounded-2xl bg-white p-8 text-slate-500"><Spinner label="Loading model insights..." /></div>}
       {error && <p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-700">{error}</p>}

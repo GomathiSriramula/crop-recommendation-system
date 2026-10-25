@@ -4,12 +4,18 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { jwtExpiresIn, jwtSecret } = require("../config/env");
 
+const BCRYPT_ROUNDS = 12;
+// Compared against when the email is unknown, so "no such user" takes as long as
+// "wrong password" and response time cannot be used to discover registered emails.
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", BCRYPT_ROUNDS);
+
 function createToken(user) {
   if (!jwtSecret) {
     throw new Error("JWT_SECRET is not configured");
   }
 
   return jwt.sign({ sub: user._id.toString(), email: user.email }, jwtSecret, {
+    algorithm: "HS256",
     expiresIn: jwtExpiresIn,
   });
 }
@@ -22,21 +28,10 @@ function publicUser(user) {
   };
 }
 
+// Input has already been validated and normalised by the express-validator chain.
 async function register(req, res, next) {
   try {
     const { name, email, password } = req.body;
-    if (
-      typeof name !== "string"
-      || typeof email !== "string"
-      || typeof password !== "string"
-      || !name.trim()
-      || !email.trim()
-      || password.length < 8
-    ) {
-      return res.status(400).json({
-        error: "Name, email, and a password of at least 8 characters are required",
-      });
-    }
 
     const normalizedEmail = email.trim().toLowerCase();
     const existingUser = await User.findOne({ email: normalizedEmail });
@@ -44,7 +39,7 @@ async function register(req, res, next) {
       return res.status(409).json({ error: "Email is already registered" });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
@@ -66,12 +61,10 @@ async function register(req, res, next) {
 async function login(req, res, next) {
   try {
     const { email, password } = req.body;
-    if (typeof email !== "string" || typeof password !== "string") {
-      return res.status(400).json({ error: "Email and password are required" });
-    }
 
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select("+password");
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    const passwordMatches = await bcrypt.compare(password, user ? user.password : DUMMY_HASH);
+    if (!user || !passwordMatches) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
@@ -84,8 +77,16 @@ async function login(req, res, next) {
   }
 }
 
-function currentUser(req, res) {
-  res.json({ user: req.user });
+async function currentUser(req, res, next) {
+  try {
+    const user = await User.findById(req.user.sub);
+    if (!user) {
+      return res.status(401).json({ error: "User account no longer exists" });
+    }
+    return res.json({ user: publicUser(user) });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 module.exports = { register, login, currentUser };

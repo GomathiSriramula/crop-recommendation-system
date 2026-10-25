@@ -1,5 +1,6 @@
 const express = require("express");
 const authRoutes = require("./authRoutes");
+const counterfactualRoutes = require("./counterfactualRoutes");
 const featureImportanceRoutes = require("./featureImportanceRoutes");
 const healthRoutes = require("./healthRoutes");
 const historyRoutes = require("./historyRoutes");
@@ -9,6 +10,7 @@ const router = express.Router();
 
 router.use("/health", healthRoutes);
 router.use("/auth", authRoutes);
+router.use("/counterfactual", counterfactualRoutes);
 router.use("/feature-importance", featureImportanceRoutes);
 router.use("/history", historyRoutes);
 router.use("/recommend", recommendRoutes);

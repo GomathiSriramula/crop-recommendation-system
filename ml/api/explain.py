@@ -15,10 +15,12 @@ _FEATURE_LABELS = {
     "ph": "soil pH",
     "rainfall": "rainfall",
 }
+# N, P and K in the training dataset are relative values on the dataset's own
+# scale, NOT laboratory mg/kg readings, so they are shown without a unit.
 _FEATURE_UNITS = {
-    "N": "mg/kg",
-    "P": "mg/kg",
-    "K": "mg/kg",
+    "N": "",
+    "P": "",
+    "K": "",
     "temperature": "°C",
     "humidity": "%",
     "ph": "",
@@ -51,7 +53,11 @@ def create_shap_explainer(
     model: Any,
     background_data: pd.DataFrame,
 ) -> shap.Explainer:
-    """Create a SHAP explainer appropriate for the supplied estimator."""
+    """Create a SHAP explainer appropriate for the supplied estimator.
+
+    Build this ONCE at start-up and reuse it: constructing an explainer on every
+    request is slow.
+    """
     if _is_tree_model(model):
         return shap.TreeExplainer(model, data=background_data)
 
@@ -66,13 +72,11 @@ def _class_feature_shap_values(
     sample_count: int,
     feature_count: int,
 ) -> np.ndarray:
+    """Return an array shaped (classes, samples, features)."""
     if isinstance(shap_values, list):
-        class_values = [
-            np.asarray(values, dtype=float) for values in shap_values
-        ]
+        class_values = [np.asarray(values, dtype=float) for values in shap_values]
         if not class_values or any(
-            values.ndim != 2
-            or values.shape != (sample_count, feature_count)
+            values.ndim != 2 or values.shape != (sample_count, feature_count)
             for values in class_values
         ):
             raise ValueError("SHAP list output has an unexpected shape")
@@ -93,9 +97,10 @@ def _class_feature_shap_values(
 def mean_absolute_shap_importance(
     model: Any,
     background_data: pd.DataFrame,
+    explainer: shap.Explainer | None = None,
 ) -> dict[str, float]:
-    """Calculate mean absolute SHAP values across rows and all output classes."""
-    explainer = create_shap_explainer(model, background_data)
+    """Mean absolute SHAP value per feature, across rows and all output classes."""
+    explainer = explainer or create_shap_explainer(model, background_data)
     shap_values = _class_feature_shap_values(
         explainer.shap_values(background_data),
         sample_count=len(background_data),
@@ -150,6 +155,7 @@ def explain_top_prediction_features(
     sample: pd.DataFrame,
     background_data: pd.DataFrame,
     class_labels: Any = None,
+    explainer: shap.Explainer | None = None,
 ) -> dict[str, Any]:
     missing_features = [feature for feature in FEATURE_NAMES if feature not in sample.columns]
     if missing_features:
@@ -169,7 +175,7 @@ def explain_top_prediction_features(
         raise ValueError("Class labels are shorter than model classes")
     top_class = str(labels[top_class_index])
 
-    explainer = create_shap_explainer(model, background_data)
+    explainer = explainer or create_shap_explainer(model, background_data)
     raw_shap_values = explainer.shap_values(input_features)
     feature_shap_values = _extract_class_shap_values(
         raw_shap_values,
@@ -198,7 +204,11 @@ def feature_contribution_sentence(
     crop: str,
     background_data: pd.DataFrame,
 ) -> str:
-    """Return a plain-English description of one feature's SHAP contribution."""
+    """Return a plain-English description of one feature's SHAP contribution.
+
+    "Low"/"High" is relative to the median of the background data (all crops),
+    not to the crop's ideal range.
+    """
     if feature not in _FEATURE_LABELS:
         raise ValueError(f"Unknown feature: {feature}")
 
@@ -212,14 +222,12 @@ def feature_contribution_sentence(
 
     label = _FEATURE_LABELS[feature]
     median = float(background_data[feature].median())
-    low = value < median
-    value_prefix = "Low " if low else "High "
+    value_prefix = "Low " if value < median else "High "
     unit = _FEATURE_UNITS[feature]
-    formatted_value = f"{value:g}"
-    display_value = f"{formatted_value} {unit}".strip()
+    display_value = f"{value:g} {unit}".strip()
     direction = "supports" if contribution >= 0 else "opposes"
 
     return (
         f"{value_prefix}{label} ({display_value}) {strength} "
-        f"{direction} {crop}."
+        f"{direction} {crop} compared with the typical dataset value."
     )

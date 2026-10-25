@@ -1,41 +1,54 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../lib/api'
+import { getErrorMessage } from '../lib/errors'
+import { FEATURE_NAMES } from '../lib/featureRules'
+import { formatProbability } from '../lib/format'
+import { saveResult } from '../lib/resultStorage'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import useToast from '../context/useToast'
+
+const PAGE_SIZE = 10
 
 function History() {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
   const [page, setPage] = useState(1)
+  const [reloadKey, setReloadKey] = useState(0)
   const [pagination, setPagination] = useState({})
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState('')
+  const [openingId, setOpeningId] = useState('')
   const { showToast } = useToast()
 
   useEffect(() => {
-    api.get(`/history?page=${page}&limit=10`)
+    // The controller cancels this request if the page changes again or the component
+    // unmounts, so a slow old response can never overwrite a newer one.
+    const controller = new AbortController()
+    setLoading(true)
+    setError('')
+
+    api.get('/history', { params: { page, limit: PAGE_SIZE }, signal: controller.signal })
       .then(({ data }) => {
         setItems(data.items)
         setPagination(data.pagination)
+        setLoading(false)
       })
       .catch((err) => {
-        const message = err.response?.data?.error || 'Please sign in to view history.'
+        if (controller.signal.aborted) return
+        const message = getErrorMessage(err, 'Unable to load your history.')
         setError(message)
         showToast(message)
+        setLoading(false)
       })
-      .finally(() => setLoading(false))
-  }, [page, showToast])
 
-  const changePage = (nextPage) => {
-    setLoading(true)
-    setError('')
-    setPage(nextPage)
-  }
+    return () => controller.abort()
+  }, [page, reloadKey, showToast])
 
-  const viewDetails = async (id) => {
+  const viewDetails = useCallback(async (id) => {
+    setOpeningId(id)
     try {
       const { data } = await api.get(`/history/${id}`)
       const soilByCrop = Object.fromEntries((data.soilAnalysis || []).map((item) => [item.crop, item.analysis]))
@@ -46,11 +59,12 @@ function History() {
         soil_analysis: soilByCrop[item.crop] || {},
         economics: economicsByCrop[item.crop] || {},
       }))
-      const topCrop = recommendations[0]?.crop
+      const topCrop = data.explanationMeta?.crop || recommendations[0]?.crop
       const explanation = data.explanation?.length
         ? {
           crop: topCrop,
-          probability: recommendations[0]?.probability,
+          probability: data.explanationMeta?.probability ?? recommendations[0]?.probability,
+          base_value: data.explanationMeta?.base_value ?? 0,
           features: data.explanation.map((item) => ({
             feature: item.feature,
             value: item.value,
@@ -60,23 +74,32 @@ function History() {
           })),
         }
         : null
-      sessionStorage.setItem('soilwise_result', JSON.stringify({ recommendations, explanation }))
+      const inputs = Object.fromEntries(FEATURE_NAMES.map((name) => [name, data[name]]))
+      saveResult({ recommendations, explanation, inputs, id: data._id, saved: true })
       navigate('/result')
     } catch (err) {
-      const message = err.response?.data?.error || 'Unable to load prediction details.'
+      const message = getErrorMessage(err, 'Unable to load prediction details.')
       setError(message)
       showToast(message)
+    } finally {
+      setOpeningId('')
     }
-  }
+  }, [navigate, showToast])
 
   const remove = async (id) => {
     if (!window.confirm('Delete this saved recommendation?')) return
     setDeletingId(id)
     try {
       await api.delete(`/history/${id}`)
-      setItems((current) => current.filter((item) => item._id !== id))
+      if (items.length === 1 && page > 1) {
+        // Deleted the last item on this page: step back one page (that triggers a reload).
+        setPage(page - 1)
+      } else {
+        // Reload so the list, total and page count stay accurate.
+        setReloadKey((current) => current + 1)
+      }
     } catch (err) {
-      const message = err.response?.data?.error || 'Unable to delete this prediction.'
+      const message = getErrorMessage(err, 'Unable to delete this prediction.')
       setError(message)
       showToast(message)
     } finally {
@@ -84,15 +107,12 @@ function History() {
     }
   }
 
+  const totalPages = pagination.totalPages || 1
+
   return (
     <div>
       <PageHeader eyebrow="Your archive" title="Recommendation history" description="Revisit the field assessments you’ve saved." />
-      {error && (
-        <div className="mb-5 rounded-2xl bg-red-50 p-5 text-red-700">
-          {error}
-          {error.toLowerCase().includes('sign in') && <Link className="ml-2 font-semibold underline" to="/login">Sign in</Link>}
-        </div>
-      )}
+      {error && <p role="alert" className="mb-5 rounded-2xl bg-red-50 p-5 text-red-700">{error}</p>}
       {loading ? (
         <div className="flex justify-center rounded-2xl bg-white p-8 text-slate-500"><Spinner label="Loading your history..." /></div>
       ) : (
@@ -106,14 +126,22 @@ function History() {
                     <p className="text-sm font-semibold text-slate-500">{new Date(item.createdAt).toLocaleString()}</p>
                     <h2 className="mt-2 text-2xl font-bold capitalize text-emerald-950">{topCrop?.crop || 'Recommendation'}</h2>
                     <p className="mt-1 text-sm text-slate-600">
-                      Top model recommendation · {topCrop ? `${(topCrop.probability * 100).toFixed(1)}% probability` : 'No probability recorded'}
+                      Top model recommendation · {topCrop ? `${formatProbability(topCrop.probability)} probability` : 'No probability recorded'}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => viewDetails(item._id)} className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800">
-                      View details
+                    <button
+                      disabled={openingId === item._id}
+                      onClick={() => viewDetails(item._id)}
+                      className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
+                    >
+                      {openingId === item._id ? 'Opening...' : 'View details'}
                     </button>
-                    <button disabled={deletingId === item._id} onClick={() => remove(item._id)} className="rounded-full border border-red-200 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50">
+                    <button
+                      disabled={deletingId === item._id}
+                      onClick={() => remove(item._id)}
+                      className="rounded-full border border-red-200 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
                       {deletingId === item._id ? 'Deleting...' : 'Delete'}
                     </button>
                   </div>
@@ -128,11 +156,11 @@ function History() {
               </article>
             )
           })}
-          {!items.length && <p className="rounded-2xl bg-white p-8 text-center text-slate-500">No saved recommendations yet.</p>}
+          {!items.length && !error && <p className="rounded-2xl bg-white p-8 text-center text-slate-500">No saved recommendations yet.</p>}
           <div className="mt-3 flex items-center justify-between text-sm">
-            <button disabled={page <= 1 || loading} onClick={() => changePage(page - 1)} className="rounded-lg border px-4 py-2 disabled:opacity-40">Previous</button>
-            <span>Page {pagination.page || page} of {pagination.totalPages || 1}</span>
-            <button disabled={!pagination.totalPages || page >= pagination.totalPages || loading} onClick={() => changePage(page + 1)} className="rounded-lg border px-4 py-2 disabled:opacity-40">Next</button>
+            <button disabled={page <= 1 || loading} onClick={() => setPage(page - 1)} className="rounded-lg border px-4 py-2 disabled:opacity-40">Previous</button>
+            <span>Page {pagination.page || page} of {totalPages}</span>
+            <button disabled={page >= totalPages || loading} onClick={() => setPage(page + 1)} className="rounded-lg border px-4 py-2 disabled:opacity-40">Next</button>
           </div>
         </div>
       )}

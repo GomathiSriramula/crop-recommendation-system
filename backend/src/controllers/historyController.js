@@ -1,44 +1,22 @@
-const mongoose = require("mongoose");
-
 const Prediction = require("../models/Prediction");
 
+// page/limit were already validated and converted to integers by
+// historyPaginationValidation, so only the defaults are needed here.
 function parsePagination(query) {
-  const page = Number(query.page || 1);
-  const limit = Number(query.limit || 10);
-
-  if (
-    !Number.isInteger(page)
-    || page < 1
-    || !Number.isInteger(limit)
-    || limit < 1
-    || limit > 100
-  ) {
-    return null;
-  }
-
+  const page = query.page || 1;
+  const limit = query.limit || 10;
   return { page, limit, skip: (page - 1) * limit };
-}
-
-function validatePredictionId(id, res) {
-  if (!mongoose.isValidObjectId(id)) {
-    res.status(400).json({ error: "Invalid prediction id" });
-    return false;
-  }
-  return true;
 }
 
 async function listHistory(req, res, next) {
   const pagination = parsePagination(req.query);
-  if (!pagination) {
-    return res.status(400).json({
-      error: "page must be a positive integer and limit must be between 1 and 100",
-    });
-  }
 
   try {
     const filter = { user: req.user.sub };
     const [items, total] = await Promise.all([
       Prediction.find(filter)
+        // The list only needs a summary; full details come from /history/:id.
+        .select("createdAt top5Results")
         .sort({ createdAt: -1 })
         .skip(pagination.skip)
         .limit(pagination.limit)
@@ -61,10 +39,6 @@ async function listHistory(req, res, next) {
 }
 
 async function getHistoryItem(req, res, next) {
-  if (!validatePredictionId(req.params.id, res)) {
-    return undefined;
-  }
-
   try {
     const prediction = await Prediction.findOne({
       _id: req.params.id,
@@ -81,10 +55,6 @@ async function getHistoryItem(req, res, next) {
 }
 
 async function deleteHistoryItem(req, res, next) {
-  if (!validatePredictionId(req.params.id, res)) {
-    return undefined;
-  }
-
   try {
     const prediction = await Prediction.findOneAndDelete({
       _id: req.params.id,

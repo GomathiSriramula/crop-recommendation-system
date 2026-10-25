@@ -1,6 +1,4 @@
-const axios = require("axios");
-
-const { mlApiUrl } = require("../config/env");
+const { mlClient, mlErrorResponse } = require("../lib/mlClient");
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
 let cachedFeatureImportance;
@@ -13,9 +11,7 @@ async function featureImportance(req, res, next) {
   }
 
   try {
-    const { data } = await axios.get(`${mlApiUrl}/feature-importance`, {
-      timeout: 15000,
-    });
+    const { data } = await mlClient.get("/feature-importance");
     if (!data || !Array.isArray(data.features)) {
       return res.status(502).json({ error: "ML service returned invalid feature importance" });
     }
@@ -24,13 +20,9 @@ async function featureImportance(req, res, next) {
     cachedAt = now;
     return res.json(data);
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const status = error.response ? 502 : 503;
-      return res.status(status).json({
-        error: error.response
-          ? "ML service returned an error"
-          : "ML service is unavailable",
-      });
+    const mapped = mlErrorResponse(error);
+    if (mapped) {
+      return res.status(mapped.status).json({ error: mapped.message });
     }
     return next(error);
   }

@@ -5,9 +5,10 @@ function Spinner({ label = 'Loading...', size = 'md' }) {
     lg: 'size-10 border-4',
   }
 
+  // role="status" announces the visible label once (no duplicate aria-label).
   return (
-    <span className="inline-flex items-center gap-2" role="status" aria-label={label}>
-      <span className={`inline-block animate-spin rounded-full border-emerald-200 border-t-emerald-700 ${sizes[size] || sizes.md}`} />
+    <span className="inline-flex items-center gap-2" role="status">
+      <span aria-hidden="true" className={`inline-block animate-spin rounded-full border-emerald-200 border-t-emerald-700 ${sizes[size] || sizes.md}`} />
       <span>{label}</span>
     </span>
   )

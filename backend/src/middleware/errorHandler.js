@@ -4,17 +4,31 @@ function notFound(req, res) {
   });
 }
 
+function resolveStatus(error) {
+  if (error.type === "entity.parse.failed") {
+    return { statusCode: 400, message: "Request body is not valid JSON" };
+  }
+  if (error.type === "entity.too.large") {
+    return { statusCode: 413, message: "Request body is too large" };
+  }
+  if (error.name === "CastError") {
+    return { statusCode: 400, message: "Invalid identifier" };
+  }
+  const statusCode = Number.isInteger(error.statusCode) ? error.statusCode : 500;
+  return { statusCode, message: error.message };
+}
+
 function errorHandler(error, _req, res, _next) {
-  const statusCode = error.statusCode || 500;
+  const { statusCode, message } = resolveStatus(error);
   const response = {
-    error: statusCode === 500 ? "Internal server error" : error.message,
+    error: statusCode >= 500 ? "Internal server error" : message,
   };
 
   if (error.details) {
     response.details = error.details;
   }
 
-  if (statusCode === 500) {
+  if (statusCode >= 500) {
     console.error(error);
   }
 
