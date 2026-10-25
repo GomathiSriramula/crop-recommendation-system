@@ -11,9 +11,14 @@ import Register from './pages/Register'
 
 // Chart-heavy pages are loaded on demand to keep the first load small.
 const Recommend = lazy(() => import('./pages/Recommend'))
-const Result = lazy(() => import('./pages/Result'))
 const History = lazy(() => import('./pages/History'))
 const Insights = lazy(() => import('./pages/Insights'))
+const ResultLayout = lazy(() => import('./pages/result/ResultLayout'))
+const Overview = lazy(() => import('./pages/result/Overview'))
+const Why = lazy(() => import('./pages/result/Why'))
+const Soil = lazy(() => import('./pages/result/Soil'))
+const Economics = lazy(() => import('./pages/result/Economics'))
+const WhatIf = lazy(() => import('./pages/result/WhatIf'))
 
 const publicLinks = [['/', 'Home']]
 const privateLinks = [
@@ -94,7 +99,13 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route element={<ProtectedRoute />}>
                 <Route path="/recommend" element={<Recommend />} />
-                <Route path="/result" element={<Result />} />
+                <Route path="/result" element={<ResultLayout />}>
+                  <Route index element={<Overview />} />
+                  <Route path="why" element={<Why />} />
+                  <Route path="soil" element={<Soil />} />
+                  <Route path="economics" element={<Economics />} />
+                  <Route path="what-if" element={<WhatIf />} />
+                </Route>
                 <Route path="/history" element={<History />} />
                 <Route path="/insights" element={<Insights />} />
               </Route>
