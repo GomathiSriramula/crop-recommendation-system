@@ -14,6 +14,7 @@ import Register from './pages/Register'
 const Recommend = lazy(() => import('./pages/Recommend'))
 const History = lazy(() => import('./pages/History'))
 const Insights = lazy(() => import('./pages/Insights'))
+const Weather = lazy(() => import('./pages/Weather'))
 const ResultLayout = lazy(() => import('./pages/result/ResultLayout'))
 const Overview = lazy(() => import('./pages/result/Overview'))
 const Why = lazy(() => import('./pages/result/Why'))
@@ -21,7 +22,7 @@ const Soil = lazy(() => import('./pages/result/Soil'))
 const Economics = lazy(() => import('./pages/result/Economics'))
 const WhatIf = lazy(() => import('./pages/result/WhatIf'))
 
-const publicLinks = [['/', 'Home']]
+const publicLinks = [['/', 'Home'], ['/weather', 'Weather']]
 const privateLinks = [
   ['/recommend', 'Recommend'],
   ['/history', 'History'],
@@ -34,6 +35,7 @@ const pageTitles = {
   '/register': 'Create your account',
   '/recommend': 'Tell us about your soil',
   '/history': 'Recommendation history',
+  '/weather': 'Weather forecast',
   '/insights': 'What matters across the model',
   '/result': 'Best crops for your field',
   '/result/why': 'Why this crop',
@@ -130,6 +132,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/weather" element={<Weather />} />
               <Route element={<ProtectedRoute />}>
                 <Route path="/recommend" element={<Recommend />} />
                 <Route path="/result" element={<ResultLayout />}>
