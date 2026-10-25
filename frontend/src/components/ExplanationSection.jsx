@@ -9,10 +9,12 @@ import {
   YAxis,
 } from 'recharts'
 import { FEATURE_LABELS } from '../lib/featureRules'
+import useLanguage from '../context/useLanguage'
 
 const signed = (value) => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(4)}`
 
 function ExplanationTooltip({ active, payload }) {
+  const { t } = useLanguage()
   if (!active || !payload?.length) return null
 
   const item = payload[0].payload
@@ -20,16 +22,17 @@ function ExplanationTooltip({ active, payload }) {
     <div className="max-w-xs rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm shadow-lg">
       <p className="font-semibold text-emerald-950">{item.label}</p>
       <p className={item.shap >= 0 ? 'text-emerald-700' : 'text-red-600'}>
-        {item.shap >= 0 ? 'Supports' : 'Opposes'} · SHAP {signed(item.shap)}
+        {t(item.shap >= 0 ? 'Supports' : 'Opposes')} · SHAP {signed(item.shap)}
       </p>
       <p className="mt-2 text-xs leading-5 text-slate-500">
-        This shows how much this input pushed the model towards or away from the recommended crop.
+        {t('This shows how much this input pushed the model towards or away from the recommended crop.')}
       </p>
     </div>
   )
 }
 
 function ExplanationSection({ explanation, crop }) {
+  const { t } = useLanguage()
   const features = (explanation?.features || [])
     .map((item) => {
       const shap = Number(item.contribution ?? item.shap ?? 0)
@@ -38,7 +41,7 @@ function ExplanationSection({ explanation, crop }) {
         shap,
         // Direction is derived from the sign so the colour, tooltip and legend always agree.
         direction: shap >= 0 ? 'supports' : 'opposes',
-        label: FEATURE_LABELS[item.feature] || item.feature,
+        label: t(FEATURE_LABELS[item.feature] || item.feature),
       }
     })
     .sort((a, b) => Math.abs(b.shap) - Math.abs(a.shap))
@@ -48,17 +51,17 @@ function ExplanationSection({ explanation, crop }) {
   return (
     <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm md:p-8">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-emerald-950">Why this crop?</h2>
+        <h2 className="text-2xl font-bold text-emerald-950">{t('Why this crop?')}</h2>
         <p className="mt-1 text-sm text-slate-500">
-          How each input pushed the model towards {crop || explanation.crop || 'this crop'}.
+          {t('How each input pushed the model towards {crop}.', { crop: t((crop || explanation.crop)?.toLowerCase()) })}
         </p>
         <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold text-slate-600">
-          <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full bg-emerald-600" /> Supports (+, bar to the right)</span>
-          <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full bg-red-500" /> Opposes (−, bar to the left)</span>
-          <span className="text-slate-400">Hover or tap a bar for details.</span>
+          <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full bg-emerald-600" /> {t('Supports (+, bar to the right)')}</span>
+          <span className="inline-flex items-center gap-2"><span className="size-3 rounded-full bg-red-500" /> {t('Opposes (−, bar to the left)')}</span>
+          <span className="text-slate-400">{t('Hover or tap a bar for details.')}</span>
         </div>
       </div>
-      <div className="h-[24rem] w-full" role="img" aria-label={`Bar chart of how each input supports or opposes ${crop || 'the recommended crop'}`}>
+      <div className="h-[24rem] w-full" role="img" aria-label={t('Bar chart of how each input supports or opposes {crop}', { crop: t((crop || 'the recommended crop')?.toLowerCase()) })}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={features}

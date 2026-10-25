@@ -1,9 +1,11 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import useAuth from '../context/useAuth'
 import Spinner from './Spinner'
+import useLanguage from '../context/useLanguage'
 
 function ProtectedRoute() {
   const { isAuthenticated, loading, token, sessionError, retrySession } = useAuth()
+  const { t } = useLanguage()
   const location = useLocation()
 
   if (loading) {
@@ -15,12 +17,12 @@ function ProtectedRoute() {
   if (!isAuthenticated && token && sessionError) {
     return (
       <div className="mx-auto max-w-md rounded-3xl bg-white p-8 text-center shadow-sm">
-        <p role="alert" className="text-slate-700">{sessionError}</p>
+        <p role="alert" className="text-slate-700">{t(sessionError)}</p>
         <button
           onClick={retrySession}
           className="mt-5 rounded-full bg-emerald-700 px-6 py-2 font-bold text-white hover:bg-emerald-800"
         >
-          Try again
+          {t('Try again')}
         </button>
       </div>
     )

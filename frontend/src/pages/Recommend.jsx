@@ -8,6 +8,7 @@ import Field from '../components/Field'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import useToast from '../context/useToast'
+import useLanguage from '../context/useLanguage'
 
 function validateForm(form) {
   return Object.fromEntries(
@@ -27,6 +28,7 @@ function Recommend() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const { showToast } = useToast()
+  const { t } = useLanguage()
 
   const change = (event) => {
     const { name, value } = event.target
@@ -83,10 +85,10 @@ function Recommend() {
             disabled={submitting}
             className="w-full rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitting ? <Spinner label="Analyzing..." size="sm" /> : 'Analyze my field'}
+            {submitting ? <Spinner label="Analyzing..." size="sm" /> : t('Analyze my field')}
           </button>
         </div>
-        {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 md:col-span-2">{error}</p>}
+        {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700 md:col-span-2">{t(error)}</p>}
       </form>
     </div>
   )

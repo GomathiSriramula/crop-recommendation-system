@@ -1,6 +1,7 @@
-import { lazy, Suspense, useState } from 'react'
-import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import useAuth from './context/useAuth'
+import useLanguage from './context/useLanguage'
 import ErrorBoundary from './components/ErrorBoundary'
 import ProtectedRoute from './components/ProtectedRoute'
 import Spinner from './components/Spinner'
@@ -27,9 +28,24 @@ const privateLinks = [
   ['/insights', 'Insights'],
 ]
 
+const pageTitles = {
+  '/': 'Data-led crop planning',
+  '/login': 'Sign in',
+  '/register': 'Create your account',
+  '/recommend': 'Tell us about your soil',
+  '/history': 'Recommendation history',
+  '/insights': 'What matters across the model',
+  '/result': 'Best crops for your field',
+  '/result/why': 'Why this crop',
+  '/result/soil': 'Soil analysis',
+  '/result/economics': 'Economics',
+  '/result/what-if': 'What if',
+}
+
 function Navigation() {
   const [menuOpen, setMenuOpen] = useState(false)
   const { isAuthenticated, user, logout } = useAuth()
+  const { language, languageOptions, setLanguage, t } = useLanguage()
   const navigate = useNavigate()
   const links = isAuthenticated ? [...publicLinks, ...privateLinks] : publicLinks
   const closeMenu = () => setMenuOpen(false)
@@ -53,7 +69,7 @@ function Navigation() {
         <button
           className="rounded-lg p-2 text-emerald-900 md:hidden"
           onClick={() => setMenuOpen((open) => !open)}
-          aria-label="Toggle menu"
+          aria-label={t('Toggle menu')}
           aria-expanded={menuOpen}
           aria-controls="main-nav"
         >
@@ -66,18 +82,29 @@ function Navigation() {
         >
           {links.map(([to, label]) => (
             <NavLink key={to} to={to} onClick={closeMenu} className={({ isActive }) => `text-sm font-semibold ${isActive ? 'text-emerald-700' : 'text-slate-600 hover:text-emerald-700'}`}>
-              {label}
+              {t(label)}
             </NavLink>
           ))}
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+            <span className="sr-only">{t('Language')}</span>
+            <select
+              aria-label={t('Language')}
+              value={language}
+              onChange={(event) => setLanguage(event.target.value)}
+              className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+            >
+              {languageOptions.map(({ code, label }) => <option key={code} value={code}>{label}</option>)}
+            </select>
+          </label>
           {isAuthenticated ? (
             <>
               <span className="hidden text-sm text-slate-500 lg:inline">{user?.name}</span>
-              <button onClick={handleLogout} className={outlineButton}>Log out</button>
+              <button onClick={handleLogout} className={outlineButton}>{t('Log out')}</button>
             </>
           ) : (
             <>
-              <Link to="/login" onClick={closeMenu} className={outlineButton}>Sign in</Link>
-              <Link to="/register" onClick={closeMenu} className="rounded-full bg-emerald-700 px-5 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-800">Create account</Link>
+              <Link to="/login" onClick={closeMenu} className={outlineButton}>{t('Sign in')}</Link>
+              <Link to="/register" onClick={closeMenu} className="rounded-full bg-emerald-700 px-5 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-800">{t('Create account')}</Link>
             </>
           )}
         </nav>
@@ -87,12 +114,19 @@ function Navigation() {
 }
 
 function App() {
+  const { t } = useLanguage()
+  const location = useLocation()
+
+  useEffect(() => {
+    document.title = `SoilWise · ${t(pageTitles[location.pathname] || 'Page not found')}`
+  }, [location.pathname, t])
+
   return (
     <div className="min-h-screen bg-[#f5f8f1] text-slate-800">
       <Navigation />
       <main className="mx-auto max-w-6xl px-6 py-10">
         <ErrorBoundary>
-          <Suspense fallback={<div className="flex justify-center py-20 text-slate-500"><Spinner label="Loading..." /></div>}>
+          <Suspense fallback={<div className="flex justify-center py-20 text-slate-500"><Spinner label={t('Loading...')} /> </div>}>
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
@@ -114,7 +148,7 @@ function App() {
           </Suspense>
         </ErrorBoundary>
       </main>
-      <footer className="mx-auto max-w-6xl px-6 pb-8 text-sm text-slate-500">SoilWise · Smarter decisions for every field.</footer>
+      <footer className="mx-auto max-w-6xl px-6 pb-8 text-sm text-slate-500">{t('SoilWise · Smarter decisions for every field.')}</footer>
     </div>
   )
 }

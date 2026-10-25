@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ToastContext from './toastContext'
+import useLanguage from './useLanguage'
 
 const TOAST_DURATION_MS = 5000
 
 function ToastProvider({ children }) {
+  const { t } = useLanguage()
   const [toasts, setToasts] = useState([])
   const timers = useRef(new Map())
   // crypto.randomUUID() only exists on secure origins (HTTPS/localhost) and would
@@ -44,8 +46,8 @@ function ToastProvider({ children }) {
             role={toast.type === 'success' ? 'status' : 'alert'}
             className={`flex items-start justify-between gap-4 rounded-2xl border p-4 text-sm shadow-xl ${toast.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'}`}
           >
-            <span>{toast.message}</span>
-            <button onClick={() => dismiss(toast.id)} className="font-bold opacity-70 hover:opacity-100" aria-label="Dismiss notification">×</button>
+            <span>{t(toast.message)}</span>
+            <button onClick={() => dismiss(toast.id)} className="font-bold opacity-70 hover:opacity-100" aria-label={t('Dismiss notification')}>×</button>
           </div>
         ))}
       </div>

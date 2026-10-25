@@ -1,6 +1,7 @@
 import { Link, useOutletContext } from 'react-router-dom'
 import { FEATURE_FIELDS } from '../../lib/featureRules'
 import { formatPercent, formatProbability, formatRupees } from '../../lib/format'
+import useLanguage from '../../context/useLanguage'
 
 function Stat({ label, value }) {
     return (
@@ -13,24 +14,25 @@ function Stat({ label, value }) {
 
 function Overview() {
     const { result, recommendations, topCrop } = useOutletContext()
+    const { t } = useLanguage()
     const top = recommendations[0]
     const inputs = result.inputs
 
     return (
         <div className="grid gap-6">
             <section className="rounded-3xl bg-emerald-900 p-6 text-white shadow-sm md:p-8">
-                <p className="text-sm font-semibold uppercase tracking-widest text-lime-200">Top recommendation</p>
-                <h2 className="mt-2 text-4xl font-bold capitalize md:text-5xl">{topCrop}</h2>
+                <p className="text-sm font-semibold uppercase tracking-widest text-lime-200">{t('Top recommendation')}</p>
+                <h2 className="mt-2 text-4xl font-bold md:text-5xl">{t(topCrop?.toLowerCase())}</h2>
                 <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                    <Stat label="Model confidence" value={formatProbability(top.probability)} />
-                    <Stat label="Profit / ha" value={formatRupees(top.economics?.profit_rs_per_ha)} />
-                    <Stat label="ROI" value={formatPercent(top.economics?.roi_percent)} />
+                    <Stat label={t('Model confidence')} value={formatProbability(top.probability)} />
+                    <Stat label={t('Profit / ha')} value={formatRupees(top.economics?.profit_rs_per_ha)} />
+                    <Stat label={t('ROI')} value={formatPercent(top.economics?.roi_percent)} />
                 </div>
             </section>
 
             <section className="rounded-3xl bg-white p-6 shadow-sm md:p-8">
-                <h2 className="text-xl font-bold text-emerald-950">Top 5 crops</h2>
-                <p className="mt-1 text-sm text-slate-500">How strongly the model recommends each crop.</p>
+                <h2 className="text-xl font-bold text-emerald-950">{t('Top 5 crops')}</h2>
+                <p className="mt-1 text-sm text-slate-500">{t('How strongly the model recommends each crop.')}</p>
                 <ol className="mt-5 grid gap-4">
                     {recommendations.map((item, index) => {
                         const percent = Math.max(0, Math.min(100, Number(item.probability) * 100 || 0))
@@ -40,7 +42,7 @@ function Overview() {
                                     {index + 1}
                                 </span>
                                 <div>
-                                    <p className="font-semibold capitalize text-emerald-950">{item.crop}</p>
+                                    <p className="font-semibold text-emerald-950">{t(item.crop?.toLowerCase())}</p>
                                     <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
                                         <div
                                             className="h-full rounded-full bg-emerald-600"
@@ -50,7 +52,7 @@ function Overview() {
                                 </div>
                                 <div className="text-right">
                                     <p className="font-bold text-emerald-700">{formatProbability(item.probability)}</p>
-                                    <p className="text-xs text-slate-500">ROI {formatPercent(item.economics?.roi_percent)}</p>
+                                    <p className="text-xs text-slate-500">{t('ROI')} {formatPercent(item.economics?.roi_percent)}</p>
                                 </div>
                             </li>
                         )
@@ -60,11 +62,11 @@ function Overview() {
 
             {inputs && (
                 <section className="rounded-3xl bg-white p-6 shadow-sm md:p-8">
-                    <h2 className="text-xl font-bold text-emerald-950">Your readings</h2>
+                    <h2 className="text-xl font-bold text-emerald-950">{t('Your readings')}</h2>
                     <div className="mt-4 flex flex-wrap gap-2">
                         {FEATURE_FIELDS.map((field) => (
                             <span key={field.name} className="rounded-full bg-slate-50 px-3 py-1 text-sm text-slate-700">
-                                <span className="text-slate-500">{field.label}:</span>{' '}
+                                <span className="text-slate-500">{t(field.label)}:</span>{' '}
                                 <span className="font-semibold">{inputs[field.name]}</span>
                             </span>
                         ))}
@@ -73,9 +75,9 @@ function Overview() {
             )}
 
             <div className="flex flex-wrap gap-3 text-sm">
-                <Link to="/result/why" className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">Why this crop →</Link>
-                <Link to="/result/soil" className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">Soil analysis →</Link>
-                <Link to="/result/economics" className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">Economics →</Link>
+                <Link to="/result/why" className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">{t('Why this crop →')}</Link>
+                <Link to="/result/soil" className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">{t('Soil analysis →')}</Link>
+                <Link to="/result/economics" className="rounded-full bg-emerald-50 px-4 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">{t('Economics →')}</Link>
             </div>
         </div>
     )

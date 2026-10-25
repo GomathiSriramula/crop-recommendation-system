@@ -1,4 +1,7 @@
+import useLanguage from '../context/useLanguage'
+
 function Spinner({ label = 'Loading...', size = 'md' }) {
+  const { t } = useLanguage()
   const sizes = {
     sm: 'size-4 border-2',
     md: 'size-6 border-2',
@@ -9,7 +12,7 @@ function Spinner({ label = 'Loading...', size = 'md' }) {
   return (
     <span className="inline-flex items-center gap-2" role="status">
       <span aria-hidden="true" className={`inline-block animate-spin rounded-full border-emerald-200 border-t-emerald-700 ${sizes[size] || sizes.md}`} />
-      <span>{label}</span>
+      <span>{t(label)}</span>
     </span>
   )
 }

@@ -8,6 +8,7 @@ import { saveResult } from '../lib/resultStorage'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
 import useToast from '../context/useToast'
+import useLanguage from '../context/useLanguage'
 
 const PAGE_SIZE = 10
 
@@ -22,14 +23,12 @@ function History() {
   const [deletingId, setDeletingId] = useState('')
   const [openingId, setOpeningId] = useState('')
   const { showToast } = useToast()
+  const { t, language } = useLanguage()
 
   useEffect(() => {
     // The controller cancels this request if the page changes again or the component
     // unmounts, so a slow old response can never overwrite a newer one.
     const controller = new AbortController()
-    setLoading(true)
-    setError('')
-
     api.get('/history', { params: { page, limit: PAGE_SIZE }, signal: controller.signal })
       .then(({ data }) => {
         setItems(data.items)
@@ -87,15 +86,19 @@ function History() {
   }, [navigate, showToast])
 
   const remove = async (id) => {
-    if (!window.confirm('Delete this saved recommendation?')) return
+    if (!window.confirm(t('Delete this saved recommendation?'))) return
     setDeletingId(id)
     try {
       await api.delete(`/history/${id}`)
       if (items.length === 1 && page > 1) {
         // Deleted the last item on this page: step back one page (that triggers a reload).
+        setLoading(true)
+        setError('')
         setPage(page - 1)
       } else {
         // Reload so the list, total and page count stay accurate.
+        setLoading(true)
+        setError('')
         setReloadKey((current) => current + 1)
       }
     } catch (err) {
@@ -112,7 +115,7 @@ function History() {
   return (
     <div>
       <PageHeader eyebrow="Your archive" title="Recommendation history" description="Revisit the field assessments you’ve saved." />
-      {error && <p role="alert" className="mb-5 rounded-2xl bg-red-50 p-5 text-red-700">{error}</p>}
+      {error && <p role="alert" className="mb-5 rounded-2xl bg-red-50 p-5 text-red-700">{t(error)}</p>}
       {loading ? (
         <div className="flex justify-center rounded-2xl bg-white p-8 text-slate-500"><Spinner label="Loading your history..." /></div>
       ) : (
@@ -123,10 +126,10 @@ function History() {
               <article key={item._id} className="rounded-3xl bg-white p-6 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-5">
                   <div>
-                    <p className="text-sm font-semibold text-slate-500">{new Date(item.createdAt).toLocaleString()}</p>
-                    <h2 className="mt-2 text-2xl font-bold capitalize text-emerald-950">{topCrop?.crop || 'Recommendation'}</h2>
+                    <p className="text-sm font-semibold text-slate-500">{new Date(item.createdAt).toLocaleString(language)}</p>
+                    <h2 className="mt-2 text-2xl font-bold text-emerald-950">{topCrop?.crop ? t(topCrop.crop.toLowerCase()) : t('Recommendation')}</h2>
                     <p className="mt-1 text-sm text-slate-600">
-                      Top model recommendation · {topCrop ? `${formatProbability(topCrop.probability)} probability` : 'No probability recorded'}
+                      {t('Top model recommendation')} · {topCrop ? `${formatProbability(topCrop.probability)} ${t('probability')}` : t('No probability recorded')}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -135,32 +138,32 @@ function History() {
                       onClick={() => viewDetails(item._id)}
                       className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
                     >
-                      {openingId === item._id ? 'Opening...' : 'View details'}
+                      {openingId === item._id ? t('Opening...') : t('View details')}
                     </button>
                     <button
                       disabled={deletingId === item._id}
                       onClick={() => remove(item._id)}
                       className="rounded-full border border-red-200 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
                     >
-                      {deletingId === item._id ? 'Deleting...' : 'Delete'}
+                      {deletingId === item._id ? t('Deleting...') : t('Delete')}
                     </button>
                   </div>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {(item.top5Results || []).map((result, index) => (
                     <span key={result.crop} className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold capitalize text-emerald-800">
-                      #{index + 1} {result.crop}
+                      #{index + 1} {t(result.crop?.toLowerCase())}
                     </span>
                   ))}
                 </div>
               </article>
             )
           })}
-          {!items.length && !error && <p className="rounded-2xl bg-white p-8 text-center text-slate-500">No saved recommendations yet.</p>}
+          {!items.length && !error && <p className="rounded-2xl bg-white p-8 text-center text-slate-500">{t('No saved recommendations yet.')}</p>}
           <div className="mt-3 flex items-center justify-between text-sm">
-            <button disabled={page <= 1 || loading} onClick={() => setPage(page - 1)} className="rounded-lg border px-4 py-2 disabled:opacity-40">Previous</button>
-            <span>Page {pagination.page || page} of {totalPages}</span>
-            <button disabled={page >= totalPages || loading} onClick={() => setPage(page + 1)} className="rounded-lg border px-4 py-2 disabled:opacity-40">Next</button>
+            <button disabled={page <= 1 || loading} onClick={() => { setLoading(true); setError(''); setPage(page - 1) }} className="rounded-lg border px-4 py-2 disabled:opacity-40">{t('Previous')}</button>
+            <span>{t('Page')} {pagination.page || page} {t('of')} {totalPages}</span>
+            <button disabled={page >= totalPages || loading} onClick={() => { setLoading(true); setError(''); setPage(page + 1) }} className="rounded-lg border px-4 py-2 disabled:opacity-40">{t('Next')}</button>
           </div>
         </div>
       )}

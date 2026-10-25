@@ -1,3 +1,5 @@
+import useLanguage from '../context/useLanguage'
+
 function Field({
   label,
   name,
@@ -12,9 +14,11 @@ function Field({
   autoComplete,
   required = true,
 }) {
+  const { t } = useLanguage()
+
   return (
     <label className="grid gap-2 text-sm font-semibold text-slate-700">
-      {label}
+      {t(label)}
       <input
         className={`rounded-xl border bg-white px-4 py-3 outline-none transition focus:ring-4 ${error
             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
@@ -34,7 +38,7 @@ function Field({
         required={required}
       />
       <span id={`${name}-help`} className={`text-xs font-normal ${error ? 'text-red-600' : 'text-slate-500'}`}>
-        {error || helperText}
+        {t(error || helperText)}
       </span>
     </label>
   )

@@ -5,6 +5,7 @@ import { getErrorMessage, getFieldErrors } from '../lib/errors'
 import Field from '../components/Field'
 import PageHeader from '../components/PageHeader'
 import Spinner from '../components/Spinner'
+import useLanguage from '../context/useLanguage'
 
 // bcrypt (used by the backend) only looks at the first 72 bytes of a password.
 const MAX_PASSWORD_BYTES = 72
@@ -22,6 +23,7 @@ function validate(form) {
 function Register() {
   const navigate = useNavigate()
   const { register } = useAuth()
+  const { t } = useLanguage()
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
@@ -71,12 +73,12 @@ function Register() {
           helperText="At least 8 characters."
           error={fieldErrors.password}
         />
-        {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{t(error)}</p>}
         <button disabled={submitting} className="flex justify-center rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
-          {submitting ? <Spinner label="Creating account..." size="sm" /> : 'Create account'}
+          {submitting ? <Spinner label="Creating account..." size="sm" /> : t('Create account')}
         </button>
         <p className="text-center text-sm text-slate-500">
-          Already registered? <Link className="font-semibold text-emerald-700" to="/login">Sign in</Link>
+          {t('Already registered?')} <Link className="font-semibold text-emerald-700" to="/login">{t('Sign in')}</Link>
         </p>
       </form>
     </div>
