@@ -3,11 +3,24 @@ import useAuth from '../context/useAuth'
 import useLanguage from '../context/useLanguage'
 
 function Home() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const { t } = useLanguage()
+  const userName = user?.name?.trim()
 
   return (
-    <section className="grid items-center gap-12 py-10 md:grid-cols-[1.1fr_.9fr] md:py-20">
+    <div>
+      {isAuthenticated && userName && (
+        <div className="-mt-3 mb-1 md:-mt-4">
+          <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-3 py-1.5 text-sm font-semibold text-emerald-800">
+            <span aria-hidden="true" className="relative block size-6 rounded-full bg-emerald-700">
+              <span className="absolute left-1/2 top-[5px] size-[6px] -translate-x-1/2 rounded-full bg-white" />
+              <span className="absolute bottom-[4px] left-1/2 size-[12px] -translate-x-1/2 rounded-t-full bg-white" />
+            </span>
+            <span>{t('Welcome back, {name}!', { name: userName })}</span>
+          </p>
+        </div>
+      )}
+      <section className="grid items-center gap-12 py-4 md:grid-cols-[1.1fr_.9fr] md:py-8">
       <div>
         <p className="mb-5 inline-flex rounded-full bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-800">{t('Data-led crop planning')}</p>
         <h1 className="max-w-3xl text-5xl font-bold leading-[1.05] tracking-tight text-emerald-950 md:text-7xl">{t('Grow with confidence.')}</h1>
@@ -33,7 +46,8 @@ function Home() {
           </div>
         </div>
       </div>
-    </section>
+      </section>
+    </div>
   )
 }
 

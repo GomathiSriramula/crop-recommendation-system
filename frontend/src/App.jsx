@@ -44,7 +44,7 @@ const pageTitles = {
 
 function Navigation() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const { isAuthenticated, user, logout } = useAuth()
+  const { isAuthenticated, logout } = useAuth()
   const { language, languageOptions, setLanguage, t } = useLanguage()
   const navigate = useNavigate()
   const links = isAuthenticated ? [...publicLinks, ...privateLinks] : publicLinks
@@ -98,7 +98,6 @@ function Navigation() {
           </label>
           {isAuthenticated ? (
             <>
-              <span className="hidden text-sm text-slate-500 lg:inline">{user?.name}</span>
               <button onClick={handleLogout} className={outlineButton}>{t('Log out')}</button>
             </>
           ) : (
